@@ -52,7 +52,7 @@ class FileLoaderApp:
         self.image_frame = ttk.Frame(self.root)
         self.image_frame.grid(row=0, column=2, rowspan=5, padx=10, pady=10, sticky="nsew")
 
-        self.canvas = tk.Canvas(self.image_frame)
+        self.canvas = tk.Canvas(self.image_frame, cursor="hand2")
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
         self.v_scrollbar = ttk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.canvas.yview)
@@ -63,26 +63,35 @@ class FileLoaderApp:
 
         self.canvas.configure(yscrollcommand=self.v_scrollbar.set, xscrollcommand=self.h_scrollbar.set)
         self.canvas.bind("<Configure>", self.resize_image)
+        self.canvas.bind("<MouseWheel>", self.scroll_image)
+        self.canvas.bind("<Shift-MouseWheel>", self.scroll_image_horizontal)
 
         self.image_label = tk.Label(self.canvas)
         self.canvas.create_window((0, 0), window=self.image_label, anchor="nw")
-
+        self.canvas.bind("<Button-1>", self.start_drag)
+        self.canvas.bind("<B1-Motion>", self.drag_image)
+        self.canvas.bind("<ButtonRelease-1>", self.stop_drag)
+        self.canvas.bind("<Enter>", lambda e: self.canvas.config(cursor="hand2"))
+        self.canvas.bind("<Leave>", lambda e: self.canvas.config(cursor=""))
         # Frame for zoom controls
         self.zoom_frame = ttk.Frame(self.root)
         self.zoom_frame.grid(row=5, column=2, columnspan=3, padx=10, pady=10, sticky="ew")
 
         # Zoom buttons with text labels
-        self.zoom_in_button = tk.Button(self.zoom_frame, text="Zoom In", command=self.zoom_in)
-        self.zoom_in_button.grid(row=0, column=0, padx=5, pady=5)
-
-        self.zoom_out_button = tk.Button(self.zoom_frame, text="Zoom Out", command=self.zoom_out)
-        self.zoom_out_button.grid(row=0, column=1, padx=5, pady=5)
-
-        self.fit_window_button = tk.Button(self.zoom_frame, text="Fit Window", command=self.fit_window)
-        self.fit_window_button.grid(row=0, column=2, padx=5, pady=5)
-
         self.zoom_ratio_label = tk.Label(self.zoom_frame, text=f"Zoom: {self.zoom_ratio:.2f}x")
-        self.zoom_ratio_label.grid(row=0, column=3, padx=5, pady=5)
+        self.zoom_ratio_label.grid(row=0, column=0, padx=5, pady=5)
+        
+        self.zoom_in_button = tk.Button(self.zoom_frame, text="+", command=self.zoom_in)
+        self.zoom_in_button.grid(row=0, column=1, padx=5, pady=5)
+
+        self.zoom_out_button = tk.Button(self.zoom_frame, text="-", command=self.zoom_out)
+        self.zoom_out_button.grid(row=0, column=2, padx=5, pady=5)
+
+        self.fit_window_button = tk.Button(self.zoom_frame, text="Fit", command=self.fit_window)
+        self.fit_window_button.grid(row=0, column=3, padx=5, pady=5)
+
+        self.zoom_100_button = tk.Button(self.zoom_frame, text="100%", command=self.zoom_100)
+        self.zoom_100_button.grid(row=0, column=4, padx=5, pady=5)
 
         self.quit_button = tk.Button(self.root, text="Quit", command=self.root.quit)
         self.quit_button.grid(row=5, column=4, padx=10, pady=10)
@@ -196,14 +205,28 @@ class FileLoaderApp:
 
     def resize_image(self, event):
         self.display_resized_image()
-
+        
     def zoom_in(self):
         self.zoom_ratio *= 2
         self.display_resized_image()
+        self.center_image()
 
     def zoom_out(self):
         self.zoom_ratio /= 2
         self.display_resized_image()
+        self.center_image()
+
+    def center_image(self):
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        image_width = int(self.image.width * self.zoom_ratio)
+        image_height = int(self.image.height * self.zoom_ratio)
+
+        x_offset = (image_width - canvas_width) // 2
+        y_offset = (image_height - canvas_height) // 2
+
+        self.canvas.xview_moveto(x_offset / image_width)
+        self.canvas.yview_moveto(y_offset / image_height)
 
     def fit_window(self):
         if not hasattr(self, 'image'):
@@ -216,6 +239,10 @@ class FileLoaderApp:
         width_ratio = canvas_width / image_width
         height_ratio = canvas_height / image_height
         self.zoom_ratio = min(width_ratio, height_ratio)
+        self.display_resized_image()
+
+    def zoom_100(self):
+        self.zoom_ratio = 1.0
         self.display_resized_image()
 
     def update_picture_listbox(self):
@@ -233,6 +260,28 @@ class FileLoaderApp:
 
     def get_dark_files(self):
         return self.dark_files
+
+    def scroll_image(self, event):
+        if event.delta > 0:
+            self.canvas.yview_scroll(-1, "units")
+        else:
+            self.canvas.yview_scroll(1, "units")
+
+    def scroll_image_horizontal(self, event):
+        if event.delta > 0:
+            self.canvas.xview_scroll(-1, "units")
+        else:
+            self.canvas.xview_scroll(1, "units")
+
+    def start_drag(self, event):
+        self.canvas.scan_mark(event.x, event.y)
+        self.canvas.config(cursor="fleur")  # Change cursor to fleur (hand)
+
+    def drag_image(self, event):
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
+
+    def stop_drag(self, event):
+        self.canvas.config(cursor="hand2")  # Change cursor back to hand2
 
 if __name__ == "__main__":
     root = tk.Tk()
